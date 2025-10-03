@@ -1,13 +1,13 @@
 package controller
 
 import (
+	"be-portfolio/config"
+	"be-portfolio/model"
 	"context"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/ghaidafasya24/be-portfolio/config"
-	"github.com/ghaidafasya24/be-portfolio/model"
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v4"
 	"go.mongodb.org/mongo-driver/bson"
@@ -82,12 +82,13 @@ func Register(c *fiber.Ctx) error {
 
 }
 
-// JWT secret key
 var jwtKey = []byte("secret_key!234@!#$%")
 
 // Claims struct untuk JWT
 type Claims struct {
-	UserID   string `json:"user_id"`
+	UserID string `json:"user_id"`
+	// FullName    string `json:"name"`
+	// PhoneNumber string `json:"phone_number"`
 	Username string `json:"username"`
 	Role     string `json:"role"`
 	jwt.RegisteredClaims

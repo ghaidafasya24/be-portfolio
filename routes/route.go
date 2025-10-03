@@ -1,7 +1,8 @@
 package route
 
 import (
-	"github.com/ghaidafasya24/be-portfolio/controller" // Sesuaikan dengan nama package project Anda
+	"be-portfolio/controller" // Sesuaikan dengan nama package project Anda
+
 	"github.com/gofiber/fiber/v2"
 )
 

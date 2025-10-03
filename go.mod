@@ -1,4 +1,4 @@
-module github.com/ghaidafasya24/be-portfolio
+module be-portfolio
 
 go 1.23.3
 
