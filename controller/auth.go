@@ -18,11 +18,11 @@ import (
 
 // REGISTER
 func Register(c *fiber.Ctx) error {
-	// Context with timeout
+	// Context with timeout for MongoDB operations
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Parse request body
+	// Parse request body into user model
 	var user model.Users
 	if err := c.BodyParser(&user); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -30,14 +30,14 @@ func Register(c *fiber.Ctx) error {
 		})
 	}
 
-	// Validate
+	// Validate required fields
 	if user.Username == "" || user.Password == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "All fields are required",
 		})
 	}
 
-	// Hash password
+	// Hash the password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -46,37 +46,31 @@ func Register(c *fiber.Ctx) error {
 	}
 	user.Password = string(hashedPassword)
 
-	// Get collection
-	usersCollection := config.Ulbimongoconn.Client().Database(config.DBUlbimongoinfo.DBName).Collection("users")
-
 	// Check if username already exists
+	usersCollection := config.Ulbimongoconn.Client().Database(config.DBUlbimongoinfo.DBName).Collection("users")
 	var existingUser model.Users
 	err = usersCollection.FindOne(ctx, bson.M{"username": user.Username}).Decode(&existingUser)
 	if err == nil {
 		return c.Status(fiber.StatusConflict).JSON(fiber.Map{
 			"error": "Username already exists",
 		})
-	} else if err != mongo.ErrNoDocuments {
-		// Error selain "tidak ditemukan"
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Database error (find user): " + err.Error(),
-		})
 	}
 
 	// Set additional fields
 	user.ID = primitive.NewObjectID()
+
+	// Set default role to "admin"
 	user.Role = "admin"
 
-	// Insert new user
+	// Insert the new user into the database
 	_, err = usersCollection.InsertOne(ctx, user)
 	if err != nil {
-		// Tampilkan error asli agar gampang debug
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Failed to create user: " + err.Error(),
+			"error": "Failed to create user",
 		})
 	}
 
-	// Success
+	// Respond with success
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"message": "User registered successfully",
 		"status":  201,
@@ -85,6 +79,7 @@ func Register(c *fiber.Ctx) error {
 			"role": user.Role,
 		},
 	})
+
 }
 
 // JWT secret key
