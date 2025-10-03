@@ -1,16 +1,15 @@
 package main
 
 import (
-	// "be-portfolio/config"
-	// "be-portfolio/routes"
 	"log"
 	"os"
 
 	"github.com/ghaidafasya24/be-portfolio/config"
-	route "github.com/ghaidafasya24/be-portfolio/routes"
+	"github.com/ghaidafasya24/be-portfolio/routes"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
+
 )
 
 func main() {
