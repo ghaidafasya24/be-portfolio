@@ -199,9 +199,10 @@ func Login(c *fiber.Ctx) error {
 		Name:     "token",
 		Value:    tokenString,
 		Expires:  expirationTime,
-		HTTPOnly: true,
-		SameSite: "Lax", // untuk localhost
-		Secure:   false, // localhost masih HTTP
+		HTTPOnly: true,  // 🔐 tidak bisa diakses JS
+		Secure:   false, // true kalau HTTPS (Heroku = true)
+		SameSite: "Lax", // penting untuk cross-origin
+		Path:     "/",
 	})
 
 	// Kirim response dengan token JWT
