@@ -4,7 +4,7 @@ import (
 	"be-portfolio/config"
 	"be-portfolio/model"
 	"context"
-	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -14,15 +14,14 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"golang.org/x/crypto/bcrypt"
+
 )
 
 // REGISTER
 func Register(c *fiber.Ctx) error {
-	// Context with timeout for MongoDB operations
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Parse request body into user model
 	var user model.Users
 	if err := c.BodyParser(&user); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -30,14 +29,65 @@ func Register(c *fiber.Ctx) error {
 		})
 	}
 
-	// Validate required fields
-	if user.Username == "" || user.Password == "" {
+	// =========================
+	// VALIDASI FIELD WAJIB
+	// =========================
+	if user.Username == "" || user.Password == "" || user.PhoneNumber == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "All fields are required",
 		})
 	}
 
-	// Hash the password
+	// =========================
+	// VALIDASI USERNAME
+	// =========================
+	// Minimal 3 karakter
+	if len(user.Username) < 3 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Username minimal 3 karakter",
+		})
+	}
+
+	// Hanya huruf kecil, angka, dan underscore
+	usernameRegex := regexp.MustCompile(`^[a-z0-9_]+$`)
+	if !usernameRegex.MatchString(user.Username) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Username hanya boleh huruf kecil, angka, dan underscore (_)",
+		})
+	}
+
+	// =========================
+	// VALIDASI PASSWORD
+	// =========================
+	if len(user.Password) < 6 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Password minimal 6 karakter",
+		})
+	}
+
+	// =========================
+	// VALIDASI NO TELEPON (62)
+	// =========================
+	phone := user.PhoneNumber
+	if !strings.HasPrefix(phone, "62") {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Format nomor telepon harus dimulai dengan 62",
+		})
+	}
+	if len(phone) > 2 && phone[2] == '0' {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Gunakan format: 62xxxxxxxxxx (tanpa 0 setelah 62)",
+		})
+	}
+	if len(phone) < 10 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Nomor telepon terlalu pendek",
+		})
+	}
+
+	// =========================
+	// HASH PASSWORD
+	// =========================
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -46,8 +96,13 @@ func Register(c *fiber.Ctx) error {
 	}
 	user.Password = string(hashedPassword)
 
-	// Check if username already exists
-	usersCollection := config.Ulbimongoconn.Client().Database(config.DBUlbimongoinfo.DBName).Collection("users")
+	// =========================
+	// CEK USERNAME DUPLIKAT
+	// =========================
+	usersCollection := config.Ulbimongoconn.Client().
+		Database(config.DBUlbimongoinfo.DBName).
+		Collection("users")
+
 	var existingUser model.Users
 	err = usersCollection.FindOne(ctx, bson.M{"username": user.Username}).Decode(&existingUser)
 	if err == nil {
@@ -56,13 +111,15 @@ func Register(c *fiber.Ctx) error {
 		})
 	}
 
-	// Set additional fields
+	// =========================
+	// SET DATA DEFAULT
+	// =========================
 	user.ID = primitive.NewObjectID()
-
-	// Set default role to "admin"
 	user.Role = "admin"
 
-	// Insert the new user into the database
+	// =========================
+	// INSERT DATA
+	// =========================
 	_, err = usersCollection.InsertOne(ctx, user)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -70,7 +127,6 @@ func Register(c *fiber.Ctx) error {
 		})
 	}
 
-	// Respond with success
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"message": "User registered successfully",
 		"status":  201,
@@ -79,19 +135,6 @@ func Register(c *fiber.Ctx) error {
 			"role": user.Role,
 		},
 	})
-
-}
-
-var jwtKey = []byte("secret_key!234@!#$%")
-
-// Claims struct untuk JWT
-type Claims struct {
-	UserID string `json:"user_id"`
-	// FullName    string `json:"name"`
-	// PhoneNumber string `json:"phone_number"`
-	Username string `json:"username"`
-	Role     string `json:"role"`
-	jwt.RegisteredClaims
 }
 
 // LOGIN
@@ -130,14 +173,18 @@ func Login(c *fiber.Ctx) error {
 		})
 	}
 
-	// Generate JWT Token
-	expirationTime := time.Now().Add(24 * time.Hour) // Token berlaku selama 24 jam
+	// Generate JWT Token dengan masa berlaku 30 menit
+	expirationTime := time.Now().Add(10 * time.Minute)
 	claims := &Claims{
+		UserID:   user.ID.Hex(),
 		Username: user.Username,
+		Role:     user.Role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expirationTime),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
 		},
 	}
+
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err := token.SignedString(jwtKey)
 	if err != nil {
@@ -152,31 +199,6 @@ func Login(c *fiber.Ctx) error {
 		"status":  200,
 		"role":    user.Role,
 		"token":   tokenString,
+		"expires": expirationTime,
 	})
-}
-
-// ValidateToken memvalidasi token JWT
-func ValidateToken(tokenString string) (bool, error) {
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		return jwtKey, nil
-	})
-	if err != nil {
-		return false, err
-	}
-	return token.Valid, nil
-}
-
-// JWTAuth middleware untuk memverifikasi token di Fiber
-func JWTAuth(c *fiber.Ctx) error {
-	bearerToken := c.Get("Authorization") // Ambil Authorization header
-	sttArr := strings.Split(bearerToken, " ")
-	if len(sttArr) == 2 {
-		isValid, _ := ValidateToken(sttArr[1]) // Validasi token
-		if isValid {
-			return c.Next() // Lanjutkan ke handler berikutnya jika token valid
-		}
-	}
-	return c.Status(http.StatusUnauthorized).JSON(fiber.Map{
-		"message": "Unauthorized",
-	}) // Jika tidak valid
 }
