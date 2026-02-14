@@ -35,3 +35,27 @@ func main() {
 	log.Printf("🚀 Server is running on http://localhost:%s", port)
 	log.Fatal(app.Listen(":" + port))
 }
+
+// func main() {
+// 	// ✅ Load .env PERTAMA
+// 	err := godotenv.Load()
+// 	if err != nil {
+// 		log.Println("⚠️  Tidak dapat memuat .env, menggunakan environment variable sistem...")
+// 	}
+
+// 	// Baru ambil PORT
+// 	port := os.Getenv("PORT")
+// 	if port == "" {
+// 		port = "3000"
+// 	}
+
+// 	app := fiber.New()
+
+// 	app.Use(logger.New())
+// 	app.Use(cors.New(config.Cors))
+
+// 	route.SetupRoutes(app)
+
+// 	log.Printf("🚀 Server running on :%s", port)
+// 	log.Fatal(app.Listen(":" + port))
+// }

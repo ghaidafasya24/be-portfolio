@@ -21,52 +21,66 @@ type Claims struct {
 
 // JWTAuth middleware untuk memverifikasi token di Fiber
 func JWTAuth(c *fiber.Ctx) error {
+	var tokenString string
 
-	// Ambil header Authorization
-	bearerToken := c.Get("Authorization")
-	if bearerToken == "" {
+	// =========================
+	// 1️⃣ Ambil dari Authorization Header
+	// =========================
+	authHeader := c.Get("Authorization")
+	if authHeader != "" {
+		parts := strings.Split(authHeader, " ")
+		if len(parts) == 2 && parts[0] == "Bearer" {
+			tokenString = parts[1]
+		}
+	}
+
+	// =========================
+	// 2️⃣ Kalau tidak ada, ambil dari Cookie
+	// =========================
+	if tokenString == "" {
+		tokenString = c.Cookies("token")
+	}
+
+	// =========================
+	// 3️⃣ Kalau tetap kosong → STOP
+	// =========================
+	if tokenString == "" {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"message": "token tidak ditemukan",
 		})
 	}
 
-	// Format harus: "Bearer <token>"
-	tokenParts := strings.Split(bearerToken, " ")
-	if len(tokenParts) != 2 || tokenParts[0] != "Bearer" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"message": "token tidak valid (format salah)",
-		})
-	}
-
-	tokenString := tokenParts[1]
-
-	// Parse token dan ambil claims
-	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
+	// =========================
+	// 4️⃣ Parse & Validasi JWT (AMAN)
+	// =========================
+	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(t *jwt.Token) (interface{}, error) {
+		// ❗ VALIDASI SIGNING METHOD
+		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, errors.New("invalid signing method")
+		}
 		return jwtKey, nil
 	})
 
-	// Jika token rusak / signature salah
 	if err != nil {
-		// CEK APAKAH EXPIRED
-		if errors.Is(err, jwt.ErrTokenExpired) {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"message": "token expired",
-			})
-		}
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"message": "token tidak valid atau expired",
+		})
+	}
 
+	claims, ok := token.Claims.(*Claims)
+	if !ok || !token.Valid {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"message": "token tidak valid",
 		})
 	}
 
-	// Jika token tidak valid (false)
-	if !token.Valid {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"message": "token tidak valid",
-		})
-	}
+	// =========================
+	// 5️⃣ Simpan claims ke context
+	// =========================
+	c.Locals("user_id", claims.UserID)
+	c.Locals("username", claims.Username)
+	c.Locals("role", claims.Role)
 
-	// Jika valid → lanjutkan handler berikutnya
 	return c.Next()
 }
 

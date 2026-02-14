@@ -14,7 +14,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"golang.org/x/crypto/bcrypt"
-
 )
 
 // REGISTER
@@ -192,6 +191,18 @@ func Login(c *fiber.Ctx) error {
 			"error": "Failed to generate token",
 		})
 	}
+
+	// =========================
+	// SET COOKIE JWT
+	// =========================
+	c.Cookie(&fiber.Cookie{
+		Name:     "token",
+		Value:    tokenString,
+		Expires:  expirationTime,
+		HTTPOnly: true,
+		SameSite: "Lax", // untuk localhost
+		Secure:   false, // localhost masih HTTP
+	})
 
 	// Kirim response dengan token JWT
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{

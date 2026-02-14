@@ -14,7 +14,6 @@ var origins = []string{
 	"https://ghaidafasya24.github.io",
 	"http://127.0.0.1:44857",
 	"http://127.0.0.1:3000",
-	"https://web-portfolio-d13077856bc7.herokuapp.com",
 }
 
 var Internalhost string = os.Getenv("INTERNALHOST") + ":" + os.Getenv("PORT")
